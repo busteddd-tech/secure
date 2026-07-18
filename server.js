@@ -81,10 +81,10 @@ app.post("/verify-registration", async (req, res) => {
 
 }, { merge: true });
 
-        // Save temporarily for authentication
-        global.savedCredential = {
-            id: credential.id
-        };
+        // // Save temporarily for authentication
+        // global.savedCredential = {
+        //     id: credential.id
+        // };
 
         res.json({
             verified: true
@@ -104,36 +104,52 @@ app.post("/verify-registration", async (req, res) => {
 }
         });
     
-app.get("/generate-authentication-options", (req, res) => {
+app.get("/generate-authentication-options", async (req, res) => {
 
-    if (!global.savedCredential) {
+    try {
 
-        return res.status(400).json({
-            error: "No fingerprint registered."
+        const uid = req.query.uid;
+
+        const userDoc = await db.collection("users").doc(uid).get();
+
+        if (!userDoc.exists || !userDoc.data().credentialID) {
+
+            return res.status(400).json({
+                error: "No fingerprint registered."
+            });
+
+        }
+
+        currentChallenge = crypto.randomBytes(32).toString("base64url");
+
+        res.json({
+
+            challenge: currentChallenge,
+
+            allowCredentials: [
+
+                {
+                    id: userDoc.data().credentialID,
+                    type: "public-key"
+                }
+
+            ],
+
+            timeout: 60000,
+
+            userVerification: "required"
+
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        res.status(500).json({
+            error: error.message
         });
 
     }
-
-    currentChallenge = crypto.randomBytes(32).toString("base64url");
-
-    res.json({
-
-        challenge: currentChallenge,
-
-        allowCredentials: [
-
-            {
-                id: global.savedCredential.id,
-                type: "public-key"
-            }
-
-        ],
-
-        timeout: 60000,
-
-        userVerification: "required"
-
-    });
 
 });
 app.post("/verify-authentication", (req, res) => {
